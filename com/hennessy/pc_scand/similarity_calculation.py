@@ -1,3 +1,5 @@
+from multiprocessing import Pool
+
 import cv2
 import numpy as np
 from PIL import Image
@@ -9,11 +11,13 @@ from torchvision import models
 
 
 class SimilarityCalculation:
+    REFERENCE_IMAGE_PATH = "./images/reference_image/"
+
     def __init__(self, path1, path2):
-        self.image_euclidean(path1, path2)
+        # self.image_euclidean(path1, path2)
         self.image_hash(path1, path2)
-        self.image_ssim(path1, path2)
-        self.image_orb(path1, path2)
+        # self.image_ssim(path1, path2)
+        # self.image_orb(path1, path2)
 
     def image_cnn(self, path1, path2):
         """使用CNN计算图片的相似度"""
@@ -66,7 +70,7 @@ class SimilarityCalculation:
         # 计算相似度
         similarity = 1 - (hash1 - hash2) / len(hash1.hash)  # 范围为0到1，值越大表示相似度越高
 
-        print(f"hash：{similarity}")
+        print(f"whash：{similarity}")
 
     def image_euclidean(self, path1, path2):
         """计算图片的欧氏距离"""
@@ -85,12 +89,21 @@ class SimilarityCalculation:
         print(f"欧几里得距离：{similarity}")
 
 
-if __name__ == '__main__':
-    path1 = "./images/test/A4.1.jpg"
-    path2 = "./images/test/A4.2.jpg"
-    path3 = "./images/a5-300.3.jpg"
-    error1 = "./images/error1.png"
-    error2 = "./images/error2.png"
-    error3 = "./images/error3.png"
+def compute_hash(path):
+    image = Image.open(path)
+    return imagehash.whash(image)
 
-    similarity_obj = SimilarityCalculation(path1, path2)
+
+if __name__ == '__main__':
+    path1 = "./images/A4.1.jpg"
+    path2 = "./images/A4.3.jpg"
+
+    #
+    # similarity_obj = SimilarityCalculation(path1, path2)
+
+    with Pool() as pool:
+        paths = [path1, path2]
+        hashes = pool.map(compute_hash, paths)
+
+    similarity = 1 - (hashes[0] - hashes[1]) / len(hashes[0].hash)
+    print(f"WHash similarity: {similarity}")
