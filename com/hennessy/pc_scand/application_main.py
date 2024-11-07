@@ -1,4 +1,5 @@
 from com.hennessy.pc_scand.comparison_operation import ComparisonOperation
+from com.hennessy.pc_scand.file_exception import CustomBaseException, ApplicationException
 from com.hennessy.pc_scand.load_operation import LoadOperation
 
 
@@ -10,18 +11,19 @@ class Application:
     __result_list = []
 
     def __init__(self):
+        LoadOperation.check_resources_exist()
         self.__load_operation = LoadOperation()
         self.__comparison_operation = ComparisonOperation()
-        self.__merge_objs = self.__load_operation._merge_queue
-        self.__case_objs = self.__load_operation._case_queue.queue
+        self.__merge_objs = self.__load_operation.merge_queue
+        self.__case_objs = self.__load_operation.case_queue
 
     def main(self):
         print("compare loading...")
-        for case in self.__case_objs:
+        while not self.__case_objs.empty():
+            case = self.__case_objs.get()
             result = self.deconstructing_obj(self.__merge_objs.get(), case)
             case['result'] = self.result_converted(result)
             self.__result_list.append(case['result'])
-
         self.__load_operation.write_to_caseFile_result(self.__result_list)
 
     def deconstructing_obj(self, merge_objs, case_obj):
@@ -36,11 +38,15 @@ class Application:
         else:
             return self.__comparison_operation.compare_main({**merge_objs, **case_obj})
 
-    def result_converted(self, r_bool):
+    @staticmethod
+    def result_converted(r_bool):
         if r_bool:
             return "Pass"
         else:
             return "Fail"
 
 
-Application().main()
+try:
+    Application().main()
+except CustomBaseException as e:
+    print(e)

@@ -1,15 +1,26 @@
-#纸张尺寸
+#纸张尺寸，[宽,高](单位：mm)
 papersize:
   A4: [ 8.27, 11.69 ]
   A5: [ 5.83, 8.27 ]
   B5_JIS: [ 7.17, 10.12 ]
   B5_ISO: [ 6.93, 9.84 ]
-#误差参数(单位:mm)
+
+#误差参数(单位：mm)
 error_range: 10
 
+#资源路径
 path:
-  prefix: './resources/'
+  prefix: 'resources/'
   case_path: 'case.xlsx'
   image_path: 'image'
   pdf_path: 'pdf'
   reference_path: 'reference_image'
+
+#case标题项
+options:
+  scanning_mode: 'Scanning_mode'              #扫描模式
+  expected_bit_depth: 'Expected_bit_depth'    #预期位深
+  paper_size: 'Paper_size'                    #纸张尺寸
+  expected_dpi: 'Expected_dpi'                #预期DPI
+  scaling_ratio: 'Scaling_ratio'              #缩放比例
+  preservation_method: 'Preservation_method'  #保存方式

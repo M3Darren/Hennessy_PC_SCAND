@@ -1,13 +1,17 @@
 import io
 import os
 import queue
+from time import sleep
+
 import win32com.client as win32
 import fitz
 import openpyxl
 import pandas as pd
 from PIL import Image
 
-from com.hennessy.pc_scand.load_yaml_config import LoadConfig
+from com.hennessy.pc_scand.file_exception import FileNotFoundException, ApplicationException
+from com.hennessy.pc_scand.load_yaml_config import LoadConfig, _case_scaling_ratio, _case_scanning_mode, \
+    _case_preservation_method
 
 
 class LoadOperation:
@@ -18,43 +22,59 @@ class LoadOperation:
     __image_queue = queue.Queue()
     __pdf_queue = queue.Queue()
     _merge_queue = queue.Queue()
-    __CASE_PATH = LoadConfig.load_yaml_path("case_path")
-    __IMAGE_PATH = LoadConfig.load_yaml_path("image_path")
-    __PDF_PATH = LoadConfig.load_yaml_path("pdf_path")
+    __CASE_PATH = LoadConfig.load_yaml_resources_path("case_path")
+    __IMAGE_PATH = LoadConfig.load_yaml_resources_path("image_path")
+    __PDF_PATH = LoadConfig.load_yaml_resources_path("pdf_path")
 
     def __init__(self):
         """
         Constructor
         """
-        print("read case ...")
+        print("read case >>")
         self.load_case_and_convert()
-        print("read image ...")
+        sleep(0.5)
+        print("read image >>>")
         self.load_image()
-        print("read pdf ...")
+        sleep(0.5)
+        print("read pdf >>>>>")
         self.load_pdf()
-        print("merge data ...")
+        sleep(0.5)
+        print("merge data >>>>>>>>")
         self.constructive_load_data()
-        print("merged Data : >>>>>>>>>>>>>>>>")
-        self.iterator(self._merge_queue)
+        sleep(0.5)
+        print("data integrity check : >>>>>>>>>>>>>>>>")
+        # self.iterator(self._case_queue)
 
-    def iterator(self, obj):
+    @staticmethod
+    def iterator(obj):
         for item in obj.queue:
             print(item)
+
+    @classmethod
+    def check_resources_exist(cls):
+        cls.close_caseFile()
+        if not os.path.exists(cls.__CASE_PATH):
+            raise FileNotFoundException(cls.__CASE_PATH)
+        if not os.path.exists(cls.__IMAGE_PATH):
+            raise FileNotFoundException(cls.__IMAGE_PATH)
+        if not os.path.exists(cls.__PDF_PATH):
+            raise FileNotFoundException(cls.__PDF_PATH)
 
     def load_case_and_convert(self):
         """
         Load case and converter.
         """
+
         df = pd.read_excel(self.__CASE_PATH, sheet_name=0)
         for row in df.to_dict(orient='records'):
-            scaling_str = row['scaling']
+            scaling_str = row[_case_scaling_ratio]
             if not isinstance(scaling_str, str):
                 scaling_str = scaling_str.strftime("%H:%M")
-            row['scaling'] = int(scaling_str[-1])
-            if row['scand_way'] == "输稿器（双面）":
-                row['scand_way'] = 1
-            if row['preservation_method'] == "PDF":
-                row['preservation_method'] = 1
+            row[_case_scaling_ratio] = int(scaling_str[-1])
+            if row[_case_scanning_mode] == "输稿器（双面）":
+                row[_case_scanning_mode] = 1
+            if row[_case_preservation_method] == "PDF":
+                row[_case_preservation_method] = 1
             self._case_queue.put(row)
 
     def load_image(self):
@@ -92,9 +112,9 @@ class LoadOperation:
         Load pdf
         """
         for filename in sorted(os.listdir(self.__PDF_PATH)):
-            # 检查文件是否为图片格式（比如jpg或png）
+            # 检查文件格式
             if filename.lower().endswith('pdf'):
-                # 获取图片的完整路径
+                # 获取PDF的完整路径
                 pdf_path = os.path.join(self.__PDF_PATH, filename)
                 # 打开PDF文件
                 doc = fitz.open(pdf_path)
@@ -124,29 +144,37 @@ class LoadOperation:
                             }
                             self.__pdf_queue.put(pdf_info)
                         except Exception as e:
-                            print(f"Error processing image on page {page_num + 1}, index {img_index + 1}: {e}")
+                            raise ApplicationException(
+                                f"{pdf_path} Read error processing image on page {page_num + 1}, index {img_index + 1}")
 
     def constructive_load_data(self):
         """
         Merge load data
         """
+        # while not self._case_queue.empty():
+        #     case_item = self._case_queue.get()
         for case_item in self._case_queue.queue:
-            if case_item['preservation_method'] == 1:
-                if case_item['scand_way'] == 1:
+            if case_item[_case_preservation_method] == 1:
+                if case_item[_case_scanning_mode] == 1:
                     self._merge_queue.put((self.__pdf_queue.get(), self.__pdf_queue.get()))
                 else:
                     self._merge_queue.put(self.__pdf_queue.get())
-
             else:
-                if case_item['scand_way'] == 1:
+                if case_item[_case_scanning_mode] == 1:
+                    if self.__image_queue.qsize() < 2:
+                        raise ApplicationException(
+                            f"Inconsistent data sets, Please check resources '{self.__IMAGE_PATH}/','{self.__PDF_PATH}/','{self.__CASE_PATH}'")
                     self._merge_queue.put((self.__image_queue.get(), self.__image_queue.get()))
                 else:
+                    if self.__image_queue.qsize() < 1:
+                        raise ApplicationException(
+                            f"Inconsistent data sets, Please check resources '{self.__IMAGE_PATH}/','{self.__PDF_PATH}/','{self.__CASE_PATH}'")
                     self._merge_queue.put(self.__image_queue.get())
 
     def write_to_caseFile_result(self, result_list):
         sheet_name = 'Case'
         start_row = 2  # 假设从第2行开始追加（第1行通常是标题行）
-        start_col = 7  # A列的列号
+        start_col = 1
         # 打开已存在的Excel文件
         workbook = openpyxl.load_workbook(self.__CASE_PATH)
         # 选择工作表
@@ -159,24 +187,27 @@ class LoadOperation:
             # 保存工作簿
         workbook.save(self.__CASE_PATH)
 
-    def close_caseFile(self):
+    @classmethod
+    def close_caseFile(cls):
         """
         Close case file
         """
         excel = win32.Dispatch("Excel.Application")
-        try:
-            # 检查Excel是否正在运行
-            if excel.Application.Workbooks.Count > 0:
-                for wb in excel.Application.Workbooks:
-                    if wb.FullName == self.__CASE_PATH:
-                        # 尝试关闭工作簿，可能会提示保存更改
-                        wb.Close(SaveChanges=True)  # SaveChanges=False 表示不保存更改
-                        break
-        except Exception as e:
-            print(f"Error closing workbook: {e}")
-        finally:
-            # 尝试退出Excel应用程序（如果它是空的，则不会真正关闭）
-            print("Exiting Excel application...")
-            excel.Application.Quit()
 
-# LoadOperation()
+        # 检查Excel是否正在运行
+        if excel.Application.Workbooks.Count > 0:
+            for wb in excel.Application.Workbooks:
+                if wb.FullName == cls.__CASE_PATH:
+                    # 尝试关闭工作簿，可能会提示保存更改
+                    wb.Close(SaveChanges=True)  # SaveChanges=False 表示不保存更改
+                    # break
+                    raise ApplicationException("close the case file error.")
+        excel.Application.Quit()
+
+    @property
+    def merge_queue(self):
+        return self._merge_queue
+
+    @property
+    def case_queue(self):
+        return self._case_queue
