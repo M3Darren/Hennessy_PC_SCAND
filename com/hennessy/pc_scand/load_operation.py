@@ -10,6 +10,7 @@ import pandas as pd
 from PIL import Image
 
 from com.hennessy.pc_scand.file_exception import FileNotFoundException, ApplicationException
+from com.hennessy.pc_scand.get_log import m_logger
 from com.hennessy.pc_scand.load_yaml_config import LoadConfig, _case_scaling_ratio, _case_scanning_mode, \
     _case_preservation_method
 
@@ -30,19 +31,19 @@ class LoadOperation:
         """
         Constructor
         """
-        print("read case >>")
+        m_logger.info('read case ...')
         self.load_case_and_convert()
-        sleep(0.5)
-        print("read image >>>")
+        m_logger.info('read image .... ')
+
         self.load_image()
-        sleep(0.5)
-        print("read pdf >>>>>")
+        m_logger.info('read pdf ......')
+
         self.load_pdf()
-        sleep(0.5)
-        print("merge data >>>>>>>>")
+        m_logger.info('merge data ........')
+
         self.constructive_load_data()
-        sleep(0.5)
-        print("data integrity check : >>>>>>>>>>>>>>>>")
+        m_logger.info('data integrity check ........')
+
         # self.iterator(self._case_queue)
 
     @staticmethod
@@ -135,7 +136,7 @@ class LoadOperation:
                             # 获取图像的尺寸（宽度，高度）
                             width, height = pil_image.size
                             pdf_info = {
-                                'filename': filename + '_' + str(page_num + 1),
+                                'filename': filename + '_page_' + str(page_num + 1),
                                 'w_h': (width, height),
                                 'actual_dpi': dpi,
                                 'actual_bit_depth': depth,
@@ -203,11 +204,3 @@ class LoadOperation:
                     # break
                     raise ApplicationException("close the case file error.")
         excel.Application.Quit()
-
-    @property
-    def merge_queue(self):
-        return self._merge_queue
-
-    @property
-    def case_queue(self):
-        return self._case_queue
