@@ -7,14 +7,8 @@ papersize:
 
 #误差参数(单位：mm)
 error_range: 10
-
-#资源路径
-path:
-  prefix: 'resources/'
-  case_path: 'case.xlsx'
-  image_path: 'image'
-  pdf_path: 'pdf'
-  reference_path: 'reference_image'
+# 备份开关
+backup: false
 
 #case标题项
 options:
@@ -24,3 +18,12 @@ options:
   expected_dpi: 'Expected_dpi'                #预期DPI
   scaling_ratio: 'Scaling_ratio'              #缩放比例
   preservation_method: 'Preservation_method'  #保存方式
+
+
+  #资源路径
+path:
+  prefix: 'resources/'
+  case_path: 'case.xlsx'
+  image_path: 'image'
+  pdf_path: 'pdf'
+  reference_path: 'reference_image'

@@ -34,7 +34,7 @@ class ComparisonOperation:
             f"actual_bit_depth：{self.__bit_depth_conversion.get(self.__merge_objects.get('actual_bit_depth'))} & expected_bit_depth：{self.__merge_objects.get(_case_expected_bit_depth)}")
         if self.__bit_depth_conversion.get(self.__merge_objects.get('actual_bit_depth')) != int(
                 self.__merge_objects.get(_case_expected_bit_depth)):
-            m_logger.warn("'bit_depth' Actual results did not meet expectations")
+            m_logger.warn("'bit_depth' - Actual results did not meet expectations")
             return False
         else:
             return True
@@ -49,7 +49,7 @@ class ComparisonOperation:
         if self.__merge_objects.get('actual_dpi')[0] != self.__merge_objects.get('actual_dpi')[1] or \
                 self.__merge_objects.get('actual_dpi')[0] != self.__merge_objects.get(
             _case_expected_dpi) * self.__merge_objects.get(_case_scaling_ratio):
-            m_logger.warn("'dpi' Actual results did not meet expectations")
+            m_logger.warn("'dpi' - Actual results did not meet expectations")
             return False
         else:
             return True
@@ -63,7 +63,7 @@ class ComparisonOperation:
         if self.calculate_width_height_error_range(0) and self.calculate_width_height_error_range(1):
             return True
         else:
-            m_logger.warn("'width_height' Actual results did not meet expectations")
+            m_logger.warn("'width_height' - Actual results did not meet expectations")
             return False
 
     def calculate_width_height_error_range(self, w_or_h_val):
@@ -87,25 +87,26 @@ class ComparisonOperation:
 
         return error_min <= self.__merge_objects['w_h'][w_or_h_val] <= error_max
 
-    def similarity_calculation(self):
+    def similarity_calculation(self, page_index):
         """
         计算相似度
         """
         m_logger.info('------ [ similarity_calculation ] ------')
 
         ref_path = LoadConfig.load_yaml_resources_path("reference_path") + '/' + self.__merge_objects[
-            _case_paper_size] + "_ref.jpg"
+            _case_paper_size] + page_index + "_ref.jpg"
         if not os.path.exists(ref_path):
             raise FileNotFoundException(ref_path)
         # 生成图像的感知哈希
         try:
             hash1 = imagehash.whash(self.__merge_objects['pil_image_obj'])
             hash2 = imagehash.whash(Image.open(ref_path))
+            self.__merge_objects['pil_image_obj'].close()
         except Exception as e:
             raise FileReadException
         # 计算相似度
         similarity = 1 - (hash1 - hash2) / len(hash1.hash)  # 范围为0到1，值越大表示相似度越高
-
+        m_logger.info(f'ref_file：{ref_path}')
         if similarity == 1:
             m_logger.info(f"image high similarity")
             return True
@@ -113,13 +114,15 @@ class ComparisonOperation:
             m_logger.warn(f"low similarity - - > whash：{similarity}")
             return False
 
-    def compare_main(self, objs):
+    def compare_main(self, objs, **double_sided_index):
         """
         主比较函数
         """
+        page_index = double_sided_index.get('page_index', '')
         m_logger.info(f'@########@ Compare：{objs["filename"]}--------------------------------')
         self.__merge_objects = objs
-        if self.bit_depth_check() and self.dpi_check() and self.width_height_pixel_check() and self.similarity_calculation():
+        if self.bit_depth_check() and self.dpi_check() and self.width_height_pixel_check() and self.similarity_calculation(
+                str(page_index)):
             return True
         else:
             return False

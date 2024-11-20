@@ -1,17 +1,16 @@
 import os
 import sys
-
 from comparison_operation import ComparisonOperation
 from file_exception import CustomBaseException
 from get_log import m_logger
-
 from load_operation import LoadOperation
+from load_yaml_config import _backup_flag
 
 # 如果程序打包为可执行文件
 if getattr(sys, 'frozen', False):
     # 获取可执行文件所在的目录
     BASE_PATH = os.path.dirname(sys.executable)
-    print(f'exe执行路径：{BASE_PATH}')
+    print(f'可执行路径：{BASE_PATH}')
     # 将当前工作目录设置为可执行文件所在的目录
     os.chdir(BASE_PATH)
 else:
@@ -43,7 +42,6 @@ class Application:
         while not self.__case_objs.empty():
             case = self.__case_objs.get()
             file_obj = self.__merge_objs.get()
-
             result = self.deconstructing_obj(file_obj, case)
             case['result'] = self.result_converted(result)
             self.__result_list.append(case['result'])
@@ -51,22 +49,22 @@ class Application:
             self.__print_filename = ''
             m_logger.info(f"result：{case['result']}")
         self.__load_operation.write_to_caseFile_result(self.__result_list)
-
         m_logger.info("============ Compare End ===============")
+        if _backup_flag:
+            self.__load_operation.resource_backup()
 
     def deconstructing_obj(self, merge_objs, case_obj):
-
         if isinstance(merge_objs, tuple):
             m_logger.info("@@@@@@@@@@@@@@@@@ [ duplex scanning ] @@@@@@@@@@@@@@@@@")
             double_sided_flag = True
-            file_name = '#'
-            for obj in merge_objs:
-                file_name += obj['filename'] + '#'
-                double_sided_flag = self.__comparison_operation.compare_main({**obj, **case_obj})
+            file_name = '('
+            for index, obj in enumerate(merge_objs):
+                file_name += obj['filename'] + '&'
+                double_sided_flag = self.__comparison_operation.compare_main({**obj, **case_obj}, page_index=index)
                 if not double_sided_flag:
                     double_sided_flag = False
                     break
-            self.__print_filename = file_name
+            self.__print_filename = file_name + ')'
             return double_sided_flag
         else:
             self.__print_filename = merge_objs['filename']
