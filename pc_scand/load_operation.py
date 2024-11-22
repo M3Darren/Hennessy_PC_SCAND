@@ -15,6 +15,8 @@ from file_exception import FileNotFoundException, ApplicationException
 from load_yaml_config import LoadConfig, _case_scaling_ratio, _case_scanning_mode, \
     _case_preservation_method
 
+Image.MAX_IMAGE_PIXELS = None
+
 
 class LoadOperation:
     """
@@ -27,6 +29,8 @@ class LoadOperation:
     __CASE_PATH = LoadConfig.load_yaml_resources_path("case_path")
     __IMAGE_PATH = LoadConfig.load_yaml_resources_path("image_path")
     __PDF_PATH = LoadConfig.load_yaml_resources_path("pdf_path")
+    __PDF_RESOURCES_FLAG = False
+    __IMAGE_RESOURCES_FLAG = False
 
     def __init__(self):
         """
@@ -60,10 +64,6 @@ class LoadOperation:
         cls.clear_overthrew_logs()
         if not os.path.exists(cls.__CASE_PATH):
             raise FileNotFoundException(cls.__CASE_PATH)
-        if not os.path.exists(cls.__IMAGE_PATH):
-            raise FileNotFoundException(cls.__IMAGE_PATH)
-        if not os.path.exists(cls.__PDF_PATH):
-            raise FileNotFoundException(cls.__PDF_PATH)
 
     def load_case_and_convert(self):
         """
@@ -71,14 +71,20 @@ class LoadOperation:
         """
         df = pd.read_excel(self.__CASE_PATH, sheet_name=0)
         for row in df.to_dict(orient='records'):
+
             scaling_str = row[_case_scaling_ratio]
-            if not isinstance(scaling_str, str):
+            if isinstance(scaling_str, datetime):
                 scaling_str = scaling_str.strftime("%H:%M")
-            row[_case_scaling_ratio] = int(scaling_str[-1])
+                row[_case_scaling_ratio] = int(scaling_str[-1])
+            else:
+                row[_case_scaling_ratio] = 1
             if row[_case_scanning_mode] == "输稿器（双面）":
                 row[_case_scanning_mode] = 1
             if row[_case_preservation_method] == "PDF":
                 row[_case_preservation_method] = 1
+                self.__PDF_RESOURCES_FLAG = True
+            else:
+                self.__IMAGE_RESOURCES_FLAG = True
             self._case_queue.put(row)
 
     def load_image(self):
@@ -87,7 +93,7 @@ class LoadOperation:
         将图片信息读入队列
         """
         image_dir = os.listdir(self.__IMAGE_PATH)
-        if not image_dir:
+        if not image_dir and self.__IMAGE_RESOURCES_FLAG:
             raise FileNotFoundException(self.__IMAGE_PATH, message='No image files found in the directory')
         for filename in sorted(image_dir):
             # 检查文件是否为图片格式（比如jpg或png）
@@ -122,7 +128,7 @@ class LoadOperation:
         Load pdf
         """
         pdf_dir = os.listdir(self.__PDF_PATH)
-        if not pdf_dir:
+        if not pdf_dir and self.__PDF_RESOURCES_FLAG:
             raise FileNotFoundException(self.__PDF_PATH, message='No files found in the directory')
         for filename in sorted(pdf_dir):
             # 检查文件格式
@@ -191,19 +197,23 @@ class LoadOperation:
             raise ApplicationException(
                 f"Resources exceed case, Please check '{self.__IMAGE_PATH}/' or '{self.__PDF_PATH}/'")
 
-    def write_to_caseFile_result(self, result_list):
+    def write_to_caseFile_result(self, result_list, remarks_list):
         sheet_name = 'Case'
         start_row = 2  # 假设从第2行开始追加（第1行通常是标题行）
-        start_col = 1
+        start_result_col = 1
+        start_remarks_col = 2
         # 打开已存在的Excel文件
         workbook = openpyxl.load_workbook(self.__CASE_PATH)
         # 选择工作表
         sheet = workbook[sheet_name]
         # 找到要追加数据的起始单元格（例如，A2）
-        start_cell_result = sheet.cell(row=start_row, column=start_col)
+        start_cell_result = sheet.cell(row=start_row, column=start_result_col)
+        start_cell_remarks = sheet.cell(row=start_row, column=start_remarks_col)
         # 追加数据到工作表
         for idx, value in enumerate(result_list, start=1):
             start_cell_result.offset(row=idx - 1).value = value
+            if value == 'Fail':
+                start_cell_remarks.offset(row=idx - 1).value = remarks_list[idx - 1]
             # 保存工作簿
         workbook.save(self.__CASE_PATH)
 

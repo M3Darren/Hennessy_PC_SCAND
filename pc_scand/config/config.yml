@@ -1,23 +1,23 @@
 #纸张尺寸，[宽,高](单位：mm)
 papersize:
-  A4: [ 8.27, 11.69 ]
-  A5: [ 5.83, 8.27 ]
-  B5_JIS: [ 7.17, 10.12 ]
-  B5_ISO: [ 6.93, 9.84 ]
+  A4: [ 210,297 ]
+
 
 #误差参数(单位：mm)
-error_range: 10
+error_range:
+  [ 2,3 ]
 # 备份开关
 backup: false
 
 #case标题项
 options:
-  scanning_mode: 'Scanning_mode'              #扫描模式
+  scanning_mode: '纸张来源'              #扫描模式
   expected_bit_depth: 'Expected_bit_depth'    #预期位深
-  paper_size: 'Paper_size'                    #纸张尺寸
-  expected_dpi: 'Expected_dpi'                #预期DPI
+  expected_color_mode: '色彩模式'  #色彩模式
+  paper_size: '纸张大小'                    #纸张尺寸
+  expected_dpi: '分辨率'                #预期DPI
   scaling_ratio: 'Scaling_ratio'              #缩放比例
-  preservation_method: 'Preservation_method'  #保存方式
+  preservation_method: '保存格式'  #保存方式
 
 
   #资源路径

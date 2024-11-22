@@ -10,5 +10,5 @@ class PaperSize:
         size = cls.sizes.get(name)
         if size is None:
             raise ApplicationException(
-                f"Please check whether {name} has been defined in the 'config/config.yml' file papersize")
+                f'The "{name}" paper size appears in the case file. Please check whether it is configured in the "config/config.yml" file papersize attribute')
         return size

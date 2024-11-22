@@ -10,7 +10,7 @@ from load_yaml_config import _backup_flag
 if getattr(sys, 'frozen', False):
     # 获取可执行文件所在的目录
     BASE_PATH = os.path.dirname(sys.executable)
-    print(f'可执行路径：{BASE_PATH}')
+    print(f'EXE执行路径：{BASE_PATH}')
     # 将当前工作目录设置为可执行文件所在的目录
     os.chdir(BASE_PATH)
 else:
@@ -48,7 +48,7 @@ class Application:
             print(f"{self.__print_filename:<60}{self.__print_result:<10}")
             self.__print_filename = ''
             m_logger.info(f"result：{case['result']}")
-        self.__load_operation.write_to_caseFile_result(self.__result_list)
+        self.__load_operation.write_to_caseFile_result(self.__result_list, self.__comparison_operation._remarks_list)
         m_logger.info("============ Compare End ===============")
         if _backup_flag:
             self.__load_operation.resource_backup()
