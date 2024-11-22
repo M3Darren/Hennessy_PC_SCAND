@@ -95,7 +95,7 @@ class LoadOperation:
         image_dir = os.listdir(self.__IMAGE_PATH)
         if not image_dir and self.__IMAGE_RESOURCES_FLAG:
             raise FileNotFoundException(self.__IMAGE_PATH, message='No image files found in the directory')
-        for filename in sorted(image_dir):
+        for filename in sorted(image_dir):  # 遗留问题：文件排序问题
             # 检查文件是否为图片格式（比如jpg或png）
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
                 # 获取图片的完整路径

@@ -69,6 +69,7 @@ class ComparisonOperation:
             else:
                 return "Unknown type"
 
+        m_logger.info(f'{image_array}')
         color_mode_str = f"actual_color_mode:{get_color_mode(image_array)} & excepted:{self.__merge_objects.get(_case_expected_color_mode)}"
         m_logger.info(color_mode_str)
         self._remarks_list.append(color_mode_str)
@@ -128,9 +129,8 @@ class ComparisonOperation:
             l_t = "left"
             r_b = "right"
         m_logger.info(
-            f"{wh} = = = > (actual_val:{self.__merge_objects['w_h'][w_or_h_val]}，expected_val:{exception_value})")
+            f"{wh} = = = > (actual_val:{self.__merge_objects['w_h'][w_or_h_val]}，expected_val:{int(exception_value)})")
         m_logger.info(f'difference in {l_t} and {r_b} {wh}：{difference_value}')
-
         return difference_value <= LoadConfig.load_yaml_error_range()[w_or_h_val] * 2
 
     def similarity_calculation(self, page_index):
@@ -147,7 +147,7 @@ class ComparisonOperation:
         try:
             hash1 = imagehash.whash(self.__merge_objects['pil_image_obj'])
             hash2 = imagehash.whash(Image.open(ref_path))
-            self.__merge_objects['pil_image_obj'].close()
+            # self.__merge_objects['pil_image_obj'].close()
         except Exception as e:
             raise FileReadException
         # 计算相似度
