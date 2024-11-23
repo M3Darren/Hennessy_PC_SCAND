@@ -1,3 +1,4 @@
+import time
 from multiprocessing import Pool
 
 import cv2
@@ -16,7 +17,7 @@ class SimilarityCalculation:
     def __init__(self, path1, path2):
         # self.image_euclidean(path1, path2)
         self.image_hash(path1, path2)
-        # self.image_ssim(path1, path2)
+        self.image_ssim(path1, path2)
         # self.image_orb(path1, path2)
 
     def image_cnn(self, path1, path2):
@@ -49,7 +50,7 @@ class SimilarityCalculation:
 
     def image_ssim(self, path1, path2):
         """计算图片的结构相似性"""
-
+        start_time = time.time()
         # 加载图像并转换为灰度图像
         img1 = cv2.imread(path1, cv2.IMREAD_GRAYSCALE)
         img2 = cv2.imread(path2, cv2.IMREAD_GRAYSCALE)
@@ -59,17 +60,22 @@ class SimilarityCalculation:
 
         # 计算 SSIM
         score, _ = ssim(img1, img2_resized, full=True)
+        end_time = time.time()
+        print(f"耗时: {end_time - start_time}")
         print(f"SSIM 相似度: {score}")
 
     def image_hash(self, path1, path2):
         """计算图片的hash距离"""
-
+        start_time = time.time()
+        img1 = cv2.imread(path1, cv2.IMREAD_GRAYSCALE)
+        img2 = cv2.imread(path2, cv2.IMREAD_GRAYSCALE)
         # 生成图像的感知哈希
-        hash1 = imagehash.whash(Image.open(path1))
-        hash2 = imagehash.whash(Image.open(path2))
+        hash1 = imagehash.whash(Image.fromarray(img1))
+        hash2 = imagehash.whash(Image.fromarray(img2))
         # 计算相似度
         similarity = 1 - (hash1 - hash2) / len(hash1.hash)  # 范围为0到1，值越大表示相似度越高
-
+        end_time = time.time()
+        print(f"耗时: {end_time - start_time}")
         print(f"whash：{similarity}")
 
     def image_euclidean(self, path1, path2):
@@ -95,15 +101,16 @@ def compute_hash(path):
 
 
 if __name__ == '__main__':
-    path1 = "./images/A4.1.jpg"
-    path2 = "./images/A4.3.jpg"
-
+    path1 = "./images/A4-sgqsm.1.jpg"
+    path2 = "./images/A4-sgqsm.3.jpg"
+    path3 = "./images/BLGT.jpg"
+    path4 = "./images/SGQ.jpg"
     #
-    # similarity_obj = SimilarityCalculation(path1, path2)
-
-    with Pool() as pool:
-        paths = [path1, path2]
-        hashes = pool.map(compute_hash, paths)
-
-    similarity = 1 - (hashes[0] - hashes[1]) / len(hashes[0].hash)
-    print(f"WHash similarity: {similarity}")
+    # SimilarityCalculation(path1, path2)
+    SimilarityCalculation(path2, path3)
+    # with Pool() as pool:
+    #     paths = [path1, path2]
+    #     hashes = pool.map(compute_hash, paths)
+    #
+    # similarity = 1 - (hashes[0] - hashes[1]) / len(hashes[0].hash)
+    # print(f"WHash similarity: {similarity}")
