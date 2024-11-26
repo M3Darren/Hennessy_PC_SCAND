@@ -45,9 +45,13 @@ class LoadConfig:
     def load_yaml_backup_flag(cls):
         return cls.__yaml_data['backup']
 
+    @classmethod
+    def load_yaml_sheet_model(cls):
+        return cls.__yaml_data['sheet_model']
+
 
 _case_scaling_ratio = LoadConfig.load_yaml_case_titles("scaling_ratio")
-_case_scanning_mode = LoadConfig.load_yaml_case_titles("scanning_mode")
+_case_scanning_mode = LoadConfig.load_yaml_case_titles("scanning_mode")[LoadConfig.load_yaml_sheet_model()]
 _case_preservation_method = LoadConfig.load_yaml_case_titles("preservation_method")
 _case_expected_bit_depth = LoadConfig.load_yaml_case_titles("expected_bit_depth")
 _case_expected_color_mode = LoadConfig.load_yaml_case_titles("expected_color_mode")

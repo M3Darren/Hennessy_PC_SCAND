@@ -1,6 +1,7 @@
 import io
 import os
 import shutil
+import time
 from datetime import datetime, timedelta
 
 import fitz
@@ -13,7 +14,7 @@ import win32com.client as win32
 from get_log import m_logger, GetLog
 from file_exception import FileNotFoundException, ApplicationException
 from load_yaml_config import LoadConfig, _case_scaling_ratio, _case_scanning_mode, \
-    _case_preservation_method
+    _case_preservation_method, _backup_flag
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -27,10 +28,10 @@ class LoadOperation:
     __image_queue = queue.Queue()  # 图片对象队列
     __pdf_queue = queue.Queue()  # pdf对象队列
     __CASE_PATH = LoadConfig.load_yaml_resources_path("case_path")
-    __IMAGE_PATH = LoadConfig.load_yaml_resources_path("image_path")
-    __PDF_PATH = LoadConfig.load_yaml_resources_path("pdf_path")
+    __RESOURCES_PATH = LoadConfig.load_yaml_resources_path("resources_path")
     __PDF_RESOURCES_FLAG = False
     __IMAGE_RESOURCES_FLAG = False
+    _sheet_model = LoadConfig.load_yaml_sheet_model()
 
     def __init__(self):
         """
@@ -38,14 +39,11 @@ class LoadOperation:
         """
         m_logger.info('read case ...')
         self.load_case_and_convert()  # 读取用例并转化
-        m_logger.info('read image .... ')
-        self.load_image()  # 读取图片
-        m_logger.info('read pdf ......')
-        self.load_pdf()  # 读取pdf
+        m_logger.info('load resources ...')
+        self.load_resources()
         m_logger.info('merge data ........')
         self.constructive_load_data()  # 合并数据
         m_logger.info('data integrity check ........')
-        # self.iterator(self._case_queue)
 
     @staticmethod
     def iterator(obj):
@@ -69,7 +67,7 @@ class LoadOperation:
         """
         Load case and converter.
         """
-        df = pd.read_excel(self.__CASE_PATH, sheet_name=0)
+        df = pd.read_excel(self.__CASE_PATH, sheet_name=self._sheet_model)
         for row in df.to_dict(orient='records'):
 
             scaling_str = row[_case_scaling_ratio]
@@ -87,59 +85,56 @@ class LoadOperation:
                 self.__IMAGE_RESOURCES_FLAG = True
             self._case_queue.put(row)
 
-    def load_image(self):
+    def load_resources(self):
         """
-        Load image
-        将图片信息读入队列
+        Load resources
         """
-        image_dir = os.listdir(self.__IMAGE_PATH)
-        if not image_dir and self.__IMAGE_RESOURCES_FLAG:
-            raise FileNotFoundException(self.__IMAGE_PATH, message='No image files found in the directory')
-        for filename in sorted(image_dir):  # 遗留问题：文件排序问题
+
+        def get_info(file_path):
+            try:
+                img = Image.open(file_path)
+            except Exception as e:
+                raise ApplicationException(f"{file_path} Read error")
+            # 获取图片的宽度和高度
+            width, height = img.size
+            # 获取位深度
+            depth = img.mode
+            # 获取DPI
+            dpi = img.info.get('dpi')
+            # 保存图片信息
+            image_info = {
+                'w_h': (width, height),
+                'actual_dpi': dpi,
+                'actual_bit_depth': depth,
+                'result': '',
+                'pil_image_obj': img,
+            }
+            return image_info
+
+        path = self.__RESOURCES_PATH
+        image_dir = os.listdir(path)
+        if not image_dir:
+            raise FileNotFoundException(image_dir, message='No image files found in the directory')
+
+        sorted_files = sorted(
+            image_dir,
+            key=lambda x: os.path.getmtime(os.path.join(path, x))
+        )
+
+        for filename in sorted_files:
+            # 获取图片的完整路径
+            file_path = os.path.join(path, filename)
             # 检查文件是否为图片格式（比如jpg或png）
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
-                # 获取图片的完整路径
-                file_path = os.path.join(self.__IMAGE_PATH, filename)
                 # 打开图片
-                try:
-                    img = Image.open(file_path)
-                except Exception as e:
-                    raise ApplicationException(f"{file_path} Read error")
-                # 获取图片的宽度和高度
-                width, height = img.size
-                # 获取位深度
-                depth = img.mode
-                # 获取DPI
-                dpi = img.info.get('dpi')
-                # 保存图片信息
-                image_info = {
-                    'filename': filename,
-                    'w_h': (width, height),
-                    'actual_dpi': dpi,
-                    'actual_bit_depth': depth,
-                    'result': '',
-                    'pil_image_obj': img
-                }
-                # 将信息添加到队列中
-                self.__image_queue.put(image_info)
-
-    def load_pdf(self):
-        """
-        Load pdf
-        """
-        pdf_dir = os.listdir(self.__PDF_PATH)
-        if not pdf_dir and self.__PDF_RESOURCES_FLAG:
-            raise FileNotFoundException(self.__PDF_PATH, message='No files found in the directory')
-        for filename in sorted(pdf_dir):
-            # 检查文件格式
-            if filename.lower().endswith('pdf'):
-                # 获取PDF的完整路径
-                pdf_path = os.path.join(self.__PDF_PATH, filename)
+                image_info = get_info(file_path)
+                self.__image_queue.put({**image_info, "filename": filename, "model": 0})
+            elif filename.lower().endswith(('.pdf')):
                 # 打开PDF文件
                 try:
-                    doc = fitz.open(pdf_path)
+                    doc = fitz.open(file_path)
                 except Exception as e:
-                    raise ApplicationException(f"{pdf_path} Read error")
+                    raise ApplicationException(f"{file_path} Read error")
                 # 遍历PDF中的每一页
                 for page_num in range(len(doc)):
                     page = doc.load_page(page_num)
@@ -149,25 +144,9 @@ class LoadOperation:
                         base_image = doc.extract_image(xref)  # 提取图像为字节数据
                         image_bytes = base_image["image"]
                         # 使用Pillow打开图像
-                        try:
-                            pil_image = Image.open(io.BytesIO(image_bytes))
-                        except Exception as e:
-                            raise ApplicationException(
-                                f"{pdf_path} Read error processing image on page {page_num + 1}, index {img_index + 1}")
-
-                        depth = pil_image.mode
-                        dpi = pil_image.info.get("dpi")  # 尝试获取DPI
-                        # 获取图像的尺寸（宽度，高度）
-                        width, height = pil_image.size
-                        pdf_info = {
-                            'filename': filename + '@page_' + str(page_num + 1),
-                            'w_h': (width, height),
-                            'actual_dpi': dpi,
-                            'actual_bit_depth': depth,
-                            'result': '',
-                            'pil_image_obj': pil_image
-                        }
-                        self.__pdf_queue.put(pdf_info)
+                        image_info = get_info(io.BytesIO(image_bytes))
+                        self.__pdf_queue.put(
+                            {**image_info, 'filename': filename + '@page_' + str(page_num + 1), "model": 1})
 
     def constructive_load_data(self):
         """
@@ -195,10 +174,10 @@ class LoadOperation:
                 scanning_mode_judgment(self.__image_queue)
         if self.__image_queue.qsize() > 0 or self.__pdf_queue.qsize() > 0:
             raise ApplicationException(
-                f"Resources exceed case, Please check '{self.__IMAGE_PATH}/' or '{self.__PDF_PATH}/'")
+                f"Resources exceed case, Please check '{self.__RESOURCES_PATH}'")
 
     def write_to_caseFile_result(self, result_list, remarks_list):
-        sheet_name = 'Case'
+        sheet_name = self._sheet_model
         start_row = 2  # 假设从第2行开始追加（第1行通常是标题行）
         start_result_col = 1
         start_remarks_col = 2
@@ -209,11 +188,13 @@ class LoadOperation:
         # 找到要追加数据的起始单元格（例如，A2）
         start_cell_result = sheet.cell(row=start_row, column=start_result_col)
         start_cell_remarks = sheet.cell(row=start_row, column=start_remarks_col)
+
         # 追加数据到工作表
         for idx, value in enumerate(result_list, start=1):
             start_cell_result.offset(row=idx - 1).value = value
+
             if value == 'Fail':
-                start_cell_remarks.offset(row=idx - 1).value = remarks_list[idx - 1]
+                start_cell_remarks.offset(row=idx - 1).value = remarks_list.get()
             # 保存工作簿
         workbook.save(self.__CASE_PATH)
 
@@ -260,11 +241,9 @@ class LoadOperation:
                     print(f"跳过非日期格式文件夹: {folder_name}")
 
     @staticmethod
-    def resource_backup(src_dir='resources', dest_dir=GetLog.log_path, dirs_to_clear=['image', 'pdf'],
+    def resource_backup(src_dir='resources', dest_dir=GetLog.log_path, dirs_to_clear=['files'],
                         case_name='case.xlsx'):
-        # 确保目标目录存在
-        if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir)
+
         shutil.copy2(os.path.join(src_dir, case_name), os.path.join(dest_dir, case_name))
         # 加载Excel文件
         wb = openpyxl.load_workbook(os.path.join(src_dir, case_name))
@@ -273,6 +252,10 @@ class LoadOperation:
         for row in range(ws.max_row, 1, -1):
             ws.delete_rows(row)
         wb.save(os.path.join(src_dir, case_name))
+        time.sleep(2)
+        # 确保目标目录存在
+        if not os.path.exists(dest_dir):
+            os.makedirs(dest_dir)
         # 清空指定目录
         for dir_name in dirs_to_clear:
             src_sub_dir = os.path.join(src_dir, dir_name)
@@ -280,9 +263,12 @@ class LoadOperation:
             # 复制文件夹内容及其结构
             if os.path.exists(src_sub_dir):
                 try:
-                    # 使用移动操作代替复制和清空
-                    shutil.move(src_sub_dir, dest_sub_dir)
-                    print(f"Backup {src_sub_dir} to {dest_sub_dir}")
+                    if not _backup_flag:
+                        shutil.rmtree(src_sub_dir)
+                    else:
+                        # 使用移动操作代替复制和清空
+                        shutil.move(src_sub_dir, dest_sub_dir)
+                        print(f"Backup {src_sub_dir} to {dest_sub_dir}")
                     os.mkdir(src_sub_dir)
                 except Exception as e:
                     raise ApplicationException(f"Failed to backup {src_sub_dir} to {dest_sub_dir}. Reason: {e}")

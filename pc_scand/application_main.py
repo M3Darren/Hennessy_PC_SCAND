@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+
 from comparison_operation import ComparisonOperation
 from file_exception import CustomBaseException
 from get_log import m_logger
@@ -38,6 +40,7 @@ class Application:
         self.__case_objs = self.__load_operation._case_queue
 
     def main(self):
+        start_time = time.time()
         m_logger.info("============ Compare Begin ===============")
         while not self.__case_objs.empty():
             case = self.__case_objs.get()
@@ -50,8 +53,10 @@ class Application:
             m_logger.info(f"result：{case['result']}")
         self.__load_operation.write_to_caseFile_result(self.__result_list, self.__comparison_operation._remarks_list)
         m_logger.info("============ Compare End ===============")
-        if _backup_flag:
-            self.__load_operation.resource_backup()
+        end_time = time.time()
+        print(f"Total time: {end_time - start_time:.2f} seconds")
+        m_logger.info(f"Total time: {end_time - start_time:.2f} seconds")
+        self.__load_operation.resource_backup()
 
     def deconstructing_obj(self, merge_objs, case_obj):
         if isinstance(merge_objs, tuple):
