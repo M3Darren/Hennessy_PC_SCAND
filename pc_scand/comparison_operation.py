@@ -57,20 +57,10 @@ class ComparisonOperation:
         def get_color_mode(img_obj):
 
             if len(img_obj.shape) == 2:  # 判断为灰阶
-                parts = self.__merge_objects['filename'].rsplit('.', 1)
-
-                if len(parts) > 1:
-                    if parts[1] == 'jpg' or parts[1] == 'jpeg':
-                        return self.__color_mode_conversion[0]
                 return self.__color_mode_conversion[1]
             elif len(img_obj.shape) == 3:
                 b, g, r = cv2.split(img_obj)
                 if (abs(b - g) <= 5).all() and (abs(g - r) <= 5).all():
-                    parts = self.__merge_objects['filename'].rsplit('.', 1)
-
-                    if len(parts) > 1:
-                        if parts[1] == 'jpg' or parts[1] == 'jpeg':
-                            return self.__color_mode_conversion[0]
                     unique_vals = np.unique(b)
                     if set(unique_vals).issubset({0, 1, 2, 3, 4, 250, 251, 252, 253, 254, 255}):  # 判断为黑白
                         return self.__color_mode_conversion[0]
@@ -172,12 +162,13 @@ class ComparisonOperation:
         try:
             hash1 = imagehash.phash(self.__merge_objects['pil_image_obj'])
             hash2 = imagehash.phash(Image.open(ref_path))
-            del self.__merge_objects['pil_image_obj']
+
         except Exception as e:
             raise FileReadException
         # 计算相似度
         similarity = 1 - (hash1 - hash2) / len(hash1.hash)  # 范围为0到1，值越大表示相似度越高
         m_logger.info(f'ref_file：{ref_path}')
+        del self.__merge_objects['pil_image_obj']
         if similarity >= 0.25:
             m_logger.info(f"image high similarity @@@@@@@@@@@@@@########  whash：{similarity}")
             return True

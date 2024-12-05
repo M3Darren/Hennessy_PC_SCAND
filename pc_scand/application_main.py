@@ -6,7 +6,6 @@ from comparison_operation import ComparisonOperation
 from file_exception import CustomBaseException
 from get_log import m_logger
 from load_operation import LoadOperation
-from load_yaml_config import _backup_flag
 
 # 如果程序打包为可执行文件
 if getattr(sys, 'frozen', False):
@@ -54,9 +53,9 @@ class Application:
         self.__load_operation.write_to_caseFile_result(self.__result_list, self.__comparison_operation._remarks_list)
         m_logger.info("============ Compare End ===============")
         end_time = time.time()
-        print(f"Total time: {end_time - start_time:.2f} seconds")
-        m_logger.info(f"Total time: {end_time - start_time:.2f} seconds")
-        self.__load_operation.resource_backup()
+        print(f"Compared time: {end_time - start_time:.2f} seconds")
+        m_logger.info(f"Compared time: {end_time - start_time:.2f} seconds")
+        self.__load_operation.backup_file()
 
     def deconstructing_obj(self, merge_objs, case_obj):
         if isinstance(merge_objs, tuple):
@@ -85,6 +84,9 @@ class Application:
 
 
 try:
+    start_time = time.time()
     Application().main()
+    end_time = time.time()
+    print(f"Total time: {end_time - start_time:.2f} seconds")
 except CustomBaseException as e:
     print(e)

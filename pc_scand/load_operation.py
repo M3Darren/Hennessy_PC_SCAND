@@ -1,7 +1,7 @@
 import io
 import os
 import shutil
-import time
+
 from datetime import datetime, timedelta
 
 import fitz
@@ -28,10 +28,11 @@ class LoadOperation:
     __image_queue = queue.Queue()  # 图片对象队列
     __pdf_queue = queue.Queue()  # pdf对象队列
     __CASE_PATH = LoadConfig.load_yaml_resources_path("case_path")
-    __RESOURCES_PATH = LoadConfig.load_yaml_resources_path("resources_path")
+    __RESOURCES_PATH = LoadConfig.load_yaml_custom_path()
     __PDF_RESOURCES_FLAG = False
     __IMAGE_RESOURCES_FLAG = False
     _sheet_model = LoadConfig.load_yaml_sheet_model()
+    _sheet_name = ['JiyinScan', 'PanelScan']
 
     def __init__(self):
         """
@@ -67,7 +68,7 @@ class LoadOperation:
         """
         Load case and converter.
         """
-        df = pd.read_excel(self.__CASE_PATH, sheet_name=self._sheet_model)
+        df = pd.read_excel(self.__CASE_PATH, sheet_name=self._sheet_name[self._sheet_model])
         for row in df.to_dict(orient='records'):
 
             scaling_str = row[_case_scaling_ratio]
@@ -158,7 +159,7 @@ class LoadOperation:
             if case_item[_case_scanning_mode] == 1:
                 if queue_obj.qsize() < 2:
                     raise ApplicationException(
-                        f"{queue_obj.get()['filename']} The number of images is not enough")
+                        f"The number of images is not enough")
                 self._merge_queue.put((queue_obj.get(), queue_obj.get()))
             else:
                 self._merge_queue.put(queue_obj.get())
@@ -177,7 +178,7 @@ class LoadOperation:
                 f"Resources exceed case, Please check '{self.__RESOURCES_PATH}'")
 
     def write_to_caseFile_result(self, result_list, remarks_list):
-        sheet_name = self._sheet_model
+        sheet_name = self._sheet_name[self._sheet_model]
         start_row = 2  # 假设从第2行开始追加（第1行通常是标题行）
         start_result_col = 1
         start_remarks_col = 2
@@ -240,36 +241,27 @@ class LoadOperation:
                     # 如果文件夹名不是日期格式，则跳过
                     print(f"跳过非日期格式文件夹: {folder_name}")
 
-    @staticmethod
-    def resource_backup(src_dir='resources', dest_dir=GetLog.log_path, dirs_to_clear=['files'],
-                        case_name='case.xlsx'):
-
-        shutil.copy2(os.path.join(src_dir, case_name), os.path.join(dest_dir, case_name))
+    @classmethod
+    def backup_file(cls, dest_path=GetLog.log_path):
+        case_path = cls.__CASE_PATH
+        files_path = cls.__RESOURCES_PATH
+        shutil.copy2(case_path, dest_path)
         # 加载Excel文件
-        wb = openpyxl.load_workbook(os.path.join(src_dir, case_name))
+        wb = openpyxl.load_workbook(case_path)
         ws = wb.active
         # 遍历工作表中的所有行，从最后一行到第2行
         for row in range(ws.max_row, 1, -1):
             ws.delete_rows(row)
-        wb.save(os.path.join(src_dir, case_name))
-        time.sleep(2)
-        # 确保目标目录存在
-        if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir)
-        # 清空指定目录
-        for dir_name in dirs_to_clear:
-            src_sub_dir = os.path.join(src_dir, dir_name)
-            dest_sub_dir = os.path.join(dest_dir, dir_name)
-            # 复制文件夹内容及其结构
-            if os.path.exists(src_sub_dir):
-                try:
-                    if not _backup_flag:
-                        shutil.rmtree(src_sub_dir)
-                    else:
-                        # 使用移动操作代替复制和清空
-                        shutil.move(src_sub_dir, dest_sub_dir)
-                        print(f"Backup {src_sub_dir} to {dest_sub_dir}")
-                    os.mkdir(src_sub_dir)
-                except Exception as e:
-                    raise ApplicationException(f"Failed to backup {src_sub_dir} to {dest_sub_dir}. Reason: {e}")
-                m_logger.info(f"Cleared {src_sub_dir}")
+        wb.save(case_path)
+        try:
+            if not _backup_flag:
+                # shutil.rmtree(files_path)
+                print('backup flag is false')
+            else:
+                # 使用移动操作代替复制和清空
+                shutil.move(files_path, dest_path)
+                print(f"Backup {files_path} to {dest_path}")
+            os.mkdir(files_path)
+        except Exception as e:
+            raise ApplicationException(f"Failed to backup {files_path} to {dest_path}. Reason: {e}")
+        m_logger.info(f"Cleared {files_path}")

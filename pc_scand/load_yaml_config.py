@@ -38,6 +38,12 @@ class LoadConfig:
         return cls.__yaml_data['path']['prefix'] + cls.__yaml_data['path'][path]
 
     @classmethod
+    def load_yaml_custom_path(cls):
+        if cls.__yaml_data['custom_path'] == '':
+            return cls.load_yaml_resources_path('resources_path')
+        return cls.__yaml_data['custom_path']
+
+    @classmethod
     def load_yaml_case_titles(cls, title):
         return cls.__yaml_data['options'].get(title)
 
