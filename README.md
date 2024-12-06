@@ -9,4 +9,7 @@
   - wHash（感知哈希）
   - SSIM（结构相似性）
 
-- 
+- Color mode 
+
+  - bit_depth
+  - np.array
