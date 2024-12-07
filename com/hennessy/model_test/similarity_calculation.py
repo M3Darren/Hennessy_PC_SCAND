@@ -16,10 +16,10 @@ REFERENCE_IMAGE_PATH = "./images/reference_image/"
 class SimilarityCalculation:
 
     def __init__(self, path1, path2):
-        # self.image_euclidean(path1, path2)
+        self.image_euclidean(path1, path2)
         self.image_hash(path1, path2)
         self.image_ssim(path1, path2)
-        # self.image_orb(path1, path2)
+        self.image_orb(path1, path2)
 
     def image_cnn(self, path1, path2):
         """使用CNN计算图片的相似度"""
@@ -102,13 +102,12 @@ def compute_hash(path):
 
 
 if __name__ == '__main__':
-    path1 = REFERENCE_IMAGE_PATH + "BLGT.jpg"
-    path2 = REFERENCE_IMAGE_PATH + "SGQ.jpg"
-    path3 = "./images/A4-sgqsm-600.1.jpg"
-    path4 = "./images/A4-sgqsm-600.5.jpg"
-    #>=0.470
-    # SimilarityCalculation(path1, path2)
-    SimilarityCalculation(path3, path4)
+    path1 = "./A41_ref.jpg"
+    path2 = "./A4_1_ref.jpg"
+
+    # >=0.470
+    SimilarityCalculation(path1, path2)
+
 
     # with Pool() as pool:
     #     paths = [path1, path2]
