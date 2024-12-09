@@ -3,13 +3,15 @@ import logging
 import os
 
 
+
+
 class GetLog:
     __logger = None
     current_time = datetime.datetime.now().strftime("%Y_%m_%d_%H-%M-%S")
-    log_file_name = f"implementation.log"
-    log_path = f'log/{current_time}'
+    log_file_name = "implementation.log"
+    log_path = f'./log/{current_time}'
     if not os.path.exists(log_path):
-        os.mkdir(log_path)
+        os.makedirs(log_path)
     __file_path = f"{log_path}/{log_file_name}"
 
     @classmethod

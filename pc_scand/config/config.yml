@@ -1,16 +1,6 @@
-#目标资源路径
-custom_path: ''
-
-# 工作模式：0 表示使用JiyinScan扫描，1 表示使用面板扫描
-sheet_model: 0
-
-#误差参数(单位：mm)
+#误差参数 [宽,高](单位：mm)
 error_range:
   [ 2,3 ]
-
-# 备份开关
-backup: false
-
 
 
 #纸张尺寸，[宽,高](单位：mm)
@@ -39,6 +29,5 @@ options:
 path:
   prefix: 'resources/'
   case_path: 'case.xlsx'
-  resources_path: 'files'
   reference_path: 'reference_image'
 

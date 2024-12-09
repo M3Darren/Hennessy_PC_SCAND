@@ -1,40 +1,44 @@
 import io
 import os
 import shutil
-
 from datetime import datetime, timedelta
-
 import fitz
 import queue
 import openpyxl
 import pandas as pd
 from PIL import Image
 import win32com.client as win32
-
 from get_log import m_logger, GetLog
 from file_exception import FileNotFoundException, ApplicationException
-from load_yaml_config import LoadConfig, _case_scaling_ratio, _case_scanning_mode, \
-    _case_preservation_method, _backup_flag
+from load_yaml_config import _case_scaling_ratio, _case_scanning_mode_list, \
+    _case_preservation_method
 
+# 取消图片加载的内存限制
 Image.MAX_IMAGE_PIXELS = None
 
 
 class LoadOperation:
     """
-    LoadOperation class
+    @Author: M3Darren
+    @Described: 加载操作，将加载的资源和Case转化为对象
     """
+
     _case_queue = queue.Queue()  # case对象队列
     _merge_queue = queue.Queue()  # 合并对象队列
     __image_queue = queue.Queue()  # 图片对象队列
     __pdf_queue = queue.Queue()  # pdf对象队列
-    __CASE_PATH = LoadConfig.load_yaml_resources_path("case_path")
-    __RESOURCES_PATH = LoadConfig.load_yaml_custom_path()
+    __CASE_PATH = './case.xlsx'
+    __RESOURCES_PATH = None
     __PDF_RESOURCES_FLAG = False
     __IMAGE_RESOURCES_FLAG = False
-    _sheet_model = LoadConfig.load_yaml_sheet_model()
+    _sheet_model = None
     _sheet_name = ['JiyinScan', 'PanelScan']
 
-    def __init__(self):
+    def __init__(self, resources_path, scan_mode, backup_flag):
+        self.__RESOURCES_PATH = resources_path
+        self._sheet_model = scan_mode
+        self._scanner_model = _case_scanning_mode_list[scan_mode]
+        self.backup_flag = backup_flag
         """
         Constructor
         """
@@ -75,10 +79,12 @@ class LoadOperation:
             if isinstance(scaling_str, datetime):
                 scaling_str = scaling_str.strftime("%H:%M")
                 row[_case_scaling_ratio] = int(scaling_str[-1])
+            elif isinstance(scaling_str, str):
+                row[_case_scaling_ratio] = int(scaling_str[-1])
             else:
                 row[_case_scaling_ratio] = 1
-            if row[_case_scanning_mode] == "输稿器（双面）":
-                row[_case_scanning_mode] = 1
+            if "双" in row[self._scanner_model]:
+                row[self._scanner_model] = 1
             if row[_case_preservation_method] == "PDF":
                 row[_case_preservation_method] = 1
                 self.__PDF_RESOURCES_FLAG = True
@@ -116,16 +122,16 @@ class LoadOperation:
         image_dir = os.listdir(path)
         if not image_dir:
             raise FileNotFoundException(image_dir, message='No image files found in the directory')
-
+        # 通过创建时间排序
         sorted_files = sorted(
             image_dir,
-            key=lambda x: os.path.getmtime(os.path.join(path, x))
+            key=lambda x: os.path.getctime(os.path.join(path, x))
         )
 
         for filename in sorted_files:
             # 获取图片的完整路径
             file_path = os.path.join(path, filename)
-            # 检查文件是否为图片格式（比如jpg或png）
+            # 检查文件是否为图片格式
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
                 # 打开图片
                 image_info = get_info(file_path)
@@ -156,7 +162,7 @@ class LoadOperation:
 
         def scanning_mode_judgment(queue_obj: queue.Queue):
             # 判断扫描方式为双面
-            if case_item[_case_scanning_mode] == 1:
+            if case_item[self._scanner_model] == 1:
                 if queue_obj.qsize() < 2:
                     raise ApplicationException(
                         f"The number of images is not enough")
@@ -175,7 +181,7 @@ class LoadOperation:
                 scanning_mode_judgment(self.__image_queue)
         if self.__image_queue.qsize() > 0 or self.__pdf_queue.qsize() > 0:
             raise ApplicationException(
-                f"Resources exceed case, Please check '{self.__RESOURCES_PATH}'")
+                f"Resources exceed case, Please check '{self.__RESOURCES_PATH}' or {self.__CASE_PATH}")
 
     def write_to_caseFile_result(self, result_list, remarks_list):
         sheet_name = self._sheet_name[self._sheet_model]
@@ -193,7 +199,6 @@ class LoadOperation:
         # 追加数据到工作表
         for idx, value in enumerate(result_list, start=1):
             start_cell_result.offset(row=idx - 1).value = value
-
             if value == 'Fail':
                 start_cell_remarks.offset(row=idx - 1).value = remarks_list.get()
             # 保存工作簿
@@ -241,10 +246,9 @@ class LoadOperation:
                     # 如果文件夹名不是日期格式，则跳过
                     print(f"跳过非日期格式文件夹: {folder_name}")
 
-    @classmethod
-    def backup_file(cls, dest_path=GetLog.log_path):
-        case_path = cls.__CASE_PATH
-        files_path = cls.__RESOURCES_PATH
+    def backup_file(self, dest_path=GetLog.log_path):
+        case_path = self.__CASE_PATH
+        files_path = self.__RESOURCES_PATH
         shutil.copy2(case_path, dest_path)
         # 加载Excel文件
         wb = openpyxl.load_workbook(case_path)
@@ -254,14 +258,13 @@ class LoadOperation:
             ws.delete_rows(row)
         wb.save(case_path)
         try:
-            if not _backup_flag:
-                # shutil.rmtree(files_path)
-                print('backup flag is false')
+            if self.backup_flag.upper() == 'N':
+                print('The backup status is False. If you need backup, please use "-b Y" to specify')
             else:
                 # 使用移动操作代替复制和清空
-                shutil.move(files_path, dest_path)
+                shutil.copytree(files_path, dest_path + '/files', dirs_exist_ok=True)
                 print(f"Backup {files_path} to {dest_path}")
-            os.mkdir(files_path)
+            # os.mkdir(files_path)
         except Exception as e:
             raise ApplicationException(f"Failed to backup {files_path} to {dest_path}. Reason: {e}")
         m_logger.info(f"Cleared {files_path}")

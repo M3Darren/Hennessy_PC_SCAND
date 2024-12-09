@@ -5,10 +5,10 @@ import imagehash
 import numpy as np
 from PIL import Image
 from skimage.metrics import structural_similarity as ssim
-from file_exception import FileReadException
+from file_exception import FileReadException, ApplicationException
 from get_log import m_logger
 from load_yaml_config import LoadConfig, _case_expected_bit_depth, _case_expected_dpi, \
-    _case_scaling_ratio, _case_paper_size, _case_expected_color_mode
+    _case_scaling_ratio, _case_paper_size, _case_expected_color_mode, _case_preservation_method
 from paper_size import PaperSize
 
 
@@ -23,11 +23,12 @@ class ComparisonOperation:
     __color_mode_conversion = ('黑白', '灰阶', '彩色')
     _remarks_list = queue.Queue()
 
-    def __init__(self):
+    def __init__(self, scan_model):
         """
         Constructor
         """
         m_logger.info("ComparisonOperation Constructor")
+        self.scanner_model = scan_model
 
     def bit_depth_check(self):
         """
@@ -68,12 +69,20 @@ class ComparisonOperation:
                 else:  # 判断为彩色
                     return self.__color_mode_conversion[2]
             else:
-                return "Unknown type"
+                raise ApplicationException("Image type not supported")
 
-        # if _backup_flag:
-        #     m_logger.info(f'{image_array}')
+        def get_last_dot_segment(s):
+            if '.' in s:
+                return s.split('.')[-1].lower() in ('jpg', 'jpeg')
+            else:
+                raise ApplicationException("File name does not contain extension")
+
         color_mode_str = f"actual_color_mode:{get_color_mode(image_array)} & excepted:{self.__merge_objects.get(_case_expected_color_mode)}"
         m_logger.info(color_mode_str)
+
+        if self.__merge_objects.get(_case_expected_color_mode) == '黑白' and get_last_dot_segment(
+                self.__merge_objects['filename']):
+            return True
         if get_color_mode(image_array) == self.__merge_objects.get(_case_expected_color_mode):
             return True
         else:
@@ -115,18 +124,21 @@ class ComparisonOperation:
             else:
                 w_h_str = "@@@ Height @@@ - Actual results did not meet expectations"
             m_logger.warn(w_h_str)
-            self._remarks_list.put(w_h_str)
+            self._remarks_list.put(f"({self.__merge_objects['filename']})" + w_h_str)
             return False
 
     def calculate_width_height_error_range(self, w_or_h_val):
         """
         计算宽高像素的误差
         """
+        # 每像素对应的mm=25.4/dpi
+        mm_per_pixel = 25.4 / self.__merge_objects[_case_expected_dpi]
+        # 预期像素=case_dpi * (纸张尺寸/25.4/缩放比)
         exception_value = self.__merge_objects[_case_expected_dpi] * \
-                          (PaperSize.get_size(self.__merge_objects[_case_paper_size])[
-                               w_or_h_val] / (self.__merge_objects[_case_scaling_ratio] * 25.4))
-        difference_value = round(abs(exception_value - self.__merge_objects['w_h'][w_or_h_val]) * (
-                25.4 / (self.__merge_objects[_case_expected_dpi] * self.__merge_objects[_case_scaling_ratio])), 3)
+                          PaperSize.get_size(self.__merge_objects[_case_paper_size])[
+                              w_or_h_val] / (self.__merge_objects[_case_scaling_ratio]) / 25.4
+        # 误差（mm）= (实际像素-预期像素) * 每像素对应的mm
+        difference_value = round(abs(exception_value - self.__merge_objects['w_h'][w_or_h_val]) * mm_per_pixel, 3)
         if w_or_h_val:
             wh = "height"
             l_t = "top"
@@ -147,7 +159,7 @@ class ComparisonOperation:
         m_logger.info('------ [ similarity_calculation ] ------')
 
         ref_path = LoadConfig.load_yaml_resources_path("reference_path") + '/' + self.__merge_objects[
-            _case_paper_size] + page_index + "_ref.jpg"
+            _case_paper_size] + '_' + page_index + "_ref.jpg"
         # if not os.path.exists(ref_path):
         #     raise FileNotFoundException(ref_path)
         # if self.__merge_objects[_case_scanning_mode] == 1:
@@ -200,11 +212,13 @@ class ComparisonOperation:
         """
         主比较函数
         """
-        page_index = double_sided_index.get('page_index', '')
+        page_index = double_sided_index.get('page_index', '0')
         m_logger.info(f'@########@ Compare：{objs["filename"]}--------------------------------')
         self.__merge_objects = objs
-        if self.dpi_check() and self.color_mode_verification() and self.width_height_pixel_check() and self.similarity_calculation(
-                str(page_index)):
-            return True
+        # 如果为PDF且模式为JiyinScan，不比较色彩
+        if self.__merge_objects[_case_preservation_method] == 1 and self.scanner_model == 0:
+            return self.dpi_check() and self.width_height_pixel_check() and self.similarity_calculation(
+                str(page_index))
         else:
-            return False
+            return self.dpi_check() and self.color_mode_verification() and self.width_height_pixel_check() and self.similarity_calculation(
+                str(page_index))
