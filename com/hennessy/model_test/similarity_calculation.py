@@ -1,3 +1,4 @@
+import os
 import time
 from multiprocessing import Pool
 
@@ -12,21 +13,29 @@ from torchvision import models
 
 REFERENCE_IMAGE_PATH = "./images/reference_image/"
 
+resList = []
+
 
 class SimilarityCalculation:
 
     def __init__(self, path1, path2):
-        self.image_euclidean(path1, path2)
-        self.image_hash(path1, path2)
-        self.image_ssim(path1, path2)
-        self.image_orb(path1, path2)
+        self.path1 = path1
+        self.path2 = path2
+
+    def get_result(self):
+        return [
+            self.image_euclidean(self.path1, self.path2),
+            self.image_hash(self.path1, self.path2),
+            self.image_ssim(self.path1, self.path2),
+            self.image_orb(self.path1, self.path2)
+        ]
 
     def image_cnn(self, path1, path2):
         """使用CNN计算图片的相似度"""
 
     def image_orb(self, path1, path2):
         """计算图片的orb特征"""
-
+        start_time = time.time()
         # 加载图像并转为灰度图
         img1 = cv2.imread(path1, cv2.IMREAD_GRAYSCALE)
         img2 = cv2.imread(path2, cv2.IMREAD_GRAYSCALE)
@@ -44,10 +53,10 @@ class SimilarityCalculation:
 
         # 根据距离排序匹配结果
         matches = sorted(matches, key=lambda x: x.distance)
-
+        end_time = time.time()
         # 计算匹配质量
         similarity = len(matches) / min(len(kp1), len(kp2))
-        print(f"ORB：匹配的特征点数量: {len(matches)},匹配质量: {similarity}")
+        return ('ORB', similarity, round(end_time - start_time, 3))
 
     def image_ssim(self, path1, path2):
         """计算图片的结构相似性"""
@@ -62,8 +71,8 @@ class SimilarityCalculation:
         # 计算 SSIM
         score, _ = ssim(img1, img2_resized, full=True)
         end_time = time.time()
-        print(f"耗时: {end_time - start_time}")
-        print(f"SSIM 相似度: {round(score, 3)}")
+
+        return {'name': 'SSIM', 'si': round(score, 3), 'time': round(end_time - start_time, 3)}
 
     def image_hash(self, path1, path2):
         """计算图片的hash距离"""
@@ -76,11 +85,26 @@ class SimilarityCalculation:
         # 计算相似度
         similarity = 1 - (hash1 - hash2) / len(hash1.hash)  # 范围为0到1，值越大表示相似度越高
         end_time = time.time()
-        print(f"耗时: {end_time - start_time}")
-        print(f"whash：{similarity}")
+
+        return {'name': 'whash', 'si': similarity, 'time': round(end_time - start_time, 3)}
+
+    def image_phash(self, path1, path2):
+        """计算图片的hash距离"""
+        start_time = time.time()
+        img1 = cv2.imread(path1, cv2.IMREAD_GRAYSCALE)
+        img2 = cv2.imread(path2, cv2.IMREAD_GRAYSCALE)
+        # 生成图像的感知哈希
+        hash1 = imagehash.phash(Image.fromarray(img1))
+        hash2 = imagehash.phash(Image.fromarray(img2))
+        # 计算相似度
+        similarity = 1 - (hash1 - hash2) / len(hash1.hash)  # 范围为0到1，值越大表示相似度越高
+        end_time = time.time()
+
+        return {'name': 'phash', 'si': similarity, 'time': round(end_time - start_time, 3)}
 
     def image_euclidean(self, path1, path2):
         """计算图片的欧氏距离"""
+        start_time = time.time()
         # 读取图片
         img1 = cv2.imread(path1)
         img2 = cv2.imread(path2)
@@ -91,9 +115,10 @@ class SimilarityCalculation:
         gray2 = cv2.resize(gray2, (gray1.shape[1], gray1.shape[0]))
         # 计算欧几里得距离
         dist = np.linalg.norm(gray2 - gray1)
+        end_time = time.time()
         # 计算相似度指标（百分比）
         similarity = (1 - dist / np.linalg.norm(gray1))
-        print(f"欧几里得距离：{similarity}")
+        return {'name': '欧几里得距离', 'si': similarity, 'time': round(end_time - start_time, 3)}
 
 
 def compute_hash(path):
@@ -103,15 +128,10 @@ def compute_hash(path):
 
 if __name__ == '__main__':
     path1 = "./A41_ref.jpg"
-    path2 = "./A4_1_ref.jpg"
+    path2 = "./A4_0_ref.jpg"
 
-    # >=0.470
-    SimilarityCalculation(path1, path2)
-
-
-    # with Pool() as pool:
-    #     paths = [path1, path2]
-    #     hashes = pool.map(compute_hash, paths)
-    #
-    # similarity = 1 - (hashes[0] - hashes[1]) / len(hashes[0].hash)
-    # print(f"WHash similarity: {similarity}")
+    for filename in sorted(os.listdir('./images')):
+        file_path = os.path.join('./images', filename)
+        print(filename)
+        res = SimilarityCalculation(file_path, path2).get_result()
+        print(res)
